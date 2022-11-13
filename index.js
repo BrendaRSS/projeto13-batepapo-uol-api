@@ -5,10 +5,19 @@ import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import joi from "joi";
 import bcrypt from "bcrypt";
+import dayjs from "dayjs";
+
+let time = [dayjs().locale("pt").format("h:mm:ss A")];
 
 const participantSchema = joi.object({
     name: joi.string().required().min(3)
 });
+
+const messagesSchema = joi.object({
+    to: joi.string().required(),
+    text: joi.string().required(),
+    type: joi.string().required().valid("message", "private_message"),
+})
 
 const app = express();
 app.use(cors());
@@ -36,11 +45,16 @@ app.post("/participants", async (req, res) => {
 
     if (error) {
         const errors = error.details.map((detail) => detail.message);
-        return res.status(400).send(errors);
+        return res.status(422).send(errors);
     }
 
     try {
-        await collectionParticipants.insertOne( body );
+        const encontrarNome = await collectionParticipants.findOne({name: body.name});
+        if(encontrarNome){
+            return res.status(409).send({message: "Esse nome já existe! Por favor, escolha outro."})
+        }
+
+        await collectionParticipants.insertOne({ ...body, lastStatus: Date.now() });
         res.status(200).send("Post dado")
     } catch (error) {
         console.log(error);
@@ -73,15 +87,23 @@ app.delete("/participants/:ID_DA_MENSAGEM", async (req, res) => {
 
 app.post("/messages", async (req, res) => {
 
-    const { to, text, type } = req.body
+    const body = req.body;
+    const { User } = req.headers;
+
+    const { error } = messagesSchema.validate(body, { abortEarly: false });
+
+    if (error) {
+        const errors = error.details.map((detail) => detail.message);
+        return res.status(422).send(errors);
+    }
+
+    if (!User) {
+        return res.status(422).send({ message: "Envie o from" });
+    }
 
     try {
-        await collectionMessages.insertOne({
-            to: to,
-            text: text,
-            type: type
-        })
-        res.status(200).send("Deu certo")
+        await collectionMessages.insertOne({ ...body, from: User, time: time})
+        res.sendStatus(201)
     } catch (error) {
         console.log(error);
         res.status(400).send("Deu erro");
@@ -100,8 +122,15 @@ app.get("/messages", async (req, res) => {
     }
 });
 
-// app.post("/status", (req, res) => {
+app.post("/status", async (req, res) => {
+    const { User } = req.headers;
 
-// });
+    try{
+        let participant = await collectionParticipants.findOne({name:User})
+        res.send(participant)
+    } catch (error){
+
+    }
+});
 
 app.listen(5000, () => console.log("Server running in port: 500"));
