@@ -8,6 +8,7 @@ import bcrypt from "bcrypt";
 import dayjs from "dayjs";
 
 let quinzeSegundos = 5;
+let nameParticipantAcctual = "";
 
 const participantSchema = joi.object({
     name: joi.string().required().min(3)
@@ -24,7 +25,7 @@ app.use(cors());
 app.use(express.json());
 dotenv.config();
 
-const mongoCLient = new MongoClient("mongodb://localhost:27017");
+const mongoCLient = new MongoClient(process.env.MONGO_URI);
 
 try {
     await mongoCLient.connect();
@@ -40,6 +41,7 @@ const collectionMessages = db.collection("messages");
 app.post("/participants", async (req, res) => {
 
     const body = req.body;
+    nameParticipantAcctual = body.name;
 
     const { error } = participantSchema.validate(body, { abortEarly: false });
 
@@ -131,19 +133,26 @@ app.post("/messages", async (req, res) => {
 app.get("/messages", async (req, res) => {
     const { fulano } = req.headers;
     const { Limit } = req.query;
-
+    console.log(fulano)
     try {
         const messages = await collectionMessages.find().toArray();
 
+        const messagesForHeader = messages.filter((message)=>
+            message.to === nameParticipantAcctual || 
+            message.to === "Todos"|| 
+            message.to === "todos" ||
+            message.type==="message" ||
+            message.from === fulano
+        )
        
         if (Limit) {
             let newMessages = []
             for (let i = 1; i <= Limit; i++) {
-                newMessages.push(messages[messages.length - i]);
+                newMessages.push(messagesForHeader[messagesForHeader.length - i]);
             }
             return res.status(200).send(newMessages);
         }
-        res.status(200).send(messages);
+        res.status(200).send(messagesForHeader);
     } catch (error) {
         console.log(error);
         res.status(400).send("Um erro no get das msgs")
