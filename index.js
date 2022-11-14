@@ -7,8 +7,6 @@ import joi from "joi";
 import bcrypt from "bcrypt";
 import dayjs from "dayjs";
 
-let time = [dayjs().locale("pt").format("h:mm:ss A")];
-
 const participantSchema = joi.object({
     name: joi.string().required().min(3)
 });
@@ -49,13 +47,21 @@ app.post("/participants", async (req, res) => {
     }
 
     try {
-        const encontrarNome = await collectionParticipants.findOne({name: body.name});
-        if(encontrarNome){
-            return res.status(409).send({message: "Esse nome já existe! Por favor, escolha outro."})
+        const encontrarNome = await collectionParticipants.findOne({ name: body.name });
+        if (encontrarNome) {
+            return res.status(409).send({ message: "Esse nome já existe! Por favor, escolha outro." })
         }
 
         await collectionParticipants.insertOne({ ...body, lastStatus: Date.now() });
-        res.status(200).send("Post dado")
+
+        await collectionMessages.insertOne({ 
+            from: body.name, 
+            to: 'Todos', 
+            text: 'entra na sala...', 
+            type: 'status', 
+            time: dayjs().locale("pt").format("HH:mm:s A") })
+
+        res.status(201).send("Post dado")
     } catch (error) {
         console.log(error);
         res.status(400).send("Deu erro");
@@ -73,12 +79,14 @@ app.get("/participants", async (req, res) => {
     }
 });
 
-app.delete("/participants/:ID_DA_MENSAGEM", async (req, res) => {
+app.delete("/participants/:id", async (req, res) => {
     const { id } = req.params;
 
     try {
-        await collectionMessages.deleteOne({ _id: ObjectId(id) });
-        res.status(200).send({ message: "Mensagem apagada com sucesso!" })
+        console.log(id)
+       const teste= await collectionParticipants.deleteOne({ _id:ObjectId(id) });
+       console.log(teste)
+        res.status(200).send({ message: "Participante apagado com sucesso!" })
     } catch (error) {
         console.log(error);
         res.status(500).send({ message: error.message });
@@ -102,7 +110,7 @@ app.post("/messages", async (req, res) => {
     }
 
     try {
-        await collectionMessages.insertOne({ ...body, from: User, time: time})
+        await collectionMessages.insertOne({ ...body, from: User, time: dayjs().locale("pt").format("HH:MM:s A") })
         res.sendStatus(201)
     } catch (error) {
         console.log(error);
@@ -125,10 +133,10 @@ app.get("/messages", async (req, res) => {
 app.post("/status", async (req, res) => {
     const { User } = req.headers;
 
-    try{
-        let participant = await collectionParticipants.findOne({name:User})
+    try {
+        let participant = await collectionParticipants.findOne({ name: User })
         res.send(participant)
-    } catch (error){
+    } catch (error) {
 
     }
 });
