@@ -59,7 +59,7 @@ app.post("/participants", async (req, res) => {
             to: 'Todos', 
             text: 'entra na sala...', 
             type: 'status', 
-            time: dayjs().locale("pt").format("HH:mm:s A") })
+            time: dayjs().locale("pt").format("HH:mm:s") })
 
         res.status(201).send("Post dado")
     } catch (error) {
@@ -96,7 +96,8 @@ app.delete("/participants/:id", async (req, res) => {
 app.post("/messages", async (req, res) => {
 
     const body = req.body;
-    const { User } = req.headers;
+    const { from } = req.headers;
+    console.log(from)
 
     const { error } = messagesSchema.validate(body, { abortEarly: false });
 
@@ -105,12 +106,17 @@ app.post("/messages", async (req, res) => {
         return res.status(422).send(errors);
     }
 
-    if (!User) {
+    if (!from) {
         return res.status(422).send({ message: "Envie o from" });
     }
 
     try {
-        await collectionMessages.insertOne({ ...body, from: User, time: dayjs().locale("pt").format("HH:MM:s A") })
+        const participanteEncontrado = await collectionParticipants.findOne({name: from});
+        if(!participanteEncontrado){
+            return res.status(422).send({message: "Participante inexistente"});
+        }
+        
+        await collectionMessages.insertOne({ ...body, from: from, time: dayjs().locale("pt").format("HH:mm:s") })
         res.sendStatus(201)
     } catch (error) {
         console.log(error);
